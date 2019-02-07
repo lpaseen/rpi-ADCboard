@@ -1,0 +1,11 @@
+*~
+ARCHIVE
+*backup
+*BAK
+*bak
+*.csv
+*.gz
+*.log
+logs
+*out
+q
