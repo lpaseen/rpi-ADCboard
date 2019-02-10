@@ -41,8 +41,8 @@ var addresses={ 1 : '6e', 2 : '6f',   // first board
 //const R1=220000  // voltage divider top resistor in ohms
 //const R2=33000   // voltage divider bottom resistor in ohms
 //Lab version, less precise resistors, manually measured
-const R1=225600  // voltage divider top resistor in ohms
-const R2=31780   // voltage divider bottom resistor in ohms
+const R1=222700  // voltage divider top resistor in ohms
+const R2=32760   // voltage divider bottom resistor in ohms
 
 const maxPort=4; // this should be autodiscovered with a throw
 
@@ -93,6 +93,7 @@ var fs = require('fs');
 		default : 
 		    port_data[port]['bits']='unknown: '+port_data[port]['sps']; break;
 		}
+                port_data[port]['rawval']=fs.readFileSync(port_data[port]['path_raw'],'utf8').replace(/\n$/, ''); // Must read _raw before scale to get it right
 		port_data[port]['scaleopt']=fs.readFileSync(port_data[port]['path_scaleopt'],'utf8').replace(/\n$/, '').trim().split(/\s+/);
 		port_data[port]['scale']=fs.readFileSync(port_data[port]['path_scale'],'utf8').replace(/\n$/, '');
 		//get current gain/pga setting set for this channel
@@ -115,11 +116,11 @@ var fs = require('fs');
 
     function GetVal(port){
         port_data[port]['rawval']=fs.readFileSync(port_data[port]['path_raw'],'utf8').replace(/\n$/, '');
-        port_data[port]['scaleval']=fs.readFileSync(port_data[port]['path_scale'],'utf8').replace(/\n$/, '');
-	port_data[port]['mV']=port_data[port]['rawval']*port_data[port]['scaleval']*1000;
+        port_data[port]['scale']=fs.readFileSync(port_data[port]['path_scale'],'utf8').replace(/\n$/, '');
+	port_data[port]['mV']=port_data[port]['rawval']*port_data[port]['scale']*1000;
         port_data[port]['Rl']=2500000/port_data[port]['pga'];  // ADC load
         port_data[port]['trueR2']=1/(1/port_data[port]['R2']+1/port_data[port]['Rl']);
-        port_data[port]['trueI']=(port_data[port]['rawval']*port_data[port]['scaleval'])/port_data[port]['trueR2'];
+        port_data[port]['trueI']=(port_data[port]['rawval']*port_data[port]['scale'])/port_data[port]['trueR2'];
         port_data[port]['trueV']=port_data[port]['trueI']*(port_data[port]['R1']+port_data[port]['trueR2']);
     } // function GetVal
 
@@ -193,7 +194,7 @@ var fs = require('fs');
     function showVal(port){
         console.log("\nPort    : "+port);
         console.log(" Raw value : "+port_data[port]['rawval']);
-        console.log(" scale     : "+port_data[port]['scaleval']);
+        console.log(" scale     : "+port_data[port]['scale']);
         console.log(" PGA       : "+port_data[port]['pga']);
         console.log(" mV        : "+port_data[port]['mV']);
 	console.log(" trueV     : "+port_data[port]['trueV']);
@@ -212,18 +213,27 @@ var fs = require('fs');
     // Main part
 
     setup(); // setup paths and load all values
-
+    console.log("Bits is "+port_data[1]['bits']);
+    if (port_data[1]['bits'] != 18){ // just set one port since all ports have same bit count
+        port_data[1]['bits'] = 18;
+        setBits(1);
+        await sleep(300);
+        setup();
+    }
     /****************/
     //read port values and print them out
-    for (let i = 4; i >= 0; i--) { // do 4 reads
+    for (let i = 3; i > 0; i--) { // do 4 reads
         for (let port = 1; port <= maxPort; port++) { // only read the first 4 ports
 	    GetVal(port); // this reads the values for this port
-	    showVal(port); // this prints them out on console.log
 	    AutoTune(port); // Adjust gain if needed
         }
+        process.stdout.write('\x1B[2J\x1B[0f');
+        for (let port = 1; port <= maxPort; port++) { // only read the first 4 ports
+	    showVal(port); // this prints them out on console.log
+        }
         if (i > 0){
-            await sleep(300); // wait for next sample
-            console.log("\n\n");
+            await sleep(3000); // wait for next sample
+            //console.log("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
         }
     }
 })();
