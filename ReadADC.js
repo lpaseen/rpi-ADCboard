@@ -38,11 +38,8 @@ var addresses={ 1 : '6e', 2 : '6f',   // first board
 	        5 : '6a', 6 : '6b',   // third board
 	        7 : '6c', 8 : '6d' }; // fourth board
 
-//const R1=220000  // voltage divider top resistor in ohms
-//const R2=33000   // voltage divider bottom resistor in ohms
-//Lab version, less precise resistors, manually measured
-const R1=222700  // voltage divider top resistor in ohms
-const R2=32760   // voltage divider bottom resistor in ohms
+const R1=220000  // voltage divider top resistor in ohms
+const R2=33000   // voltage divider bottom resistor in ohms
 
 const maxPort=4; // this should be autodiscovered with a throw
 
@@ -219,9 +216,16 @@ var fs = require('fs');
         await sleep(300);
         setup();
     }
+    // Special setup for lab
+    //Lab version, less precise resistors, manually measured
+    port_data[2]['R1']=221700
+    port_data[2]['R2']=32760
+    port_data[3]['R1']=5720000
+    port_data[3]['R2']=1000000
+    
     /****************/
     //read port values and print them out
-    for (let i = 5; i > 0; i--) { // do 4 reads
+    for (let i = 15; i > 0; i--) { // do a few  reads
         // Read values, show them and tune them in 3 different loops to improve what is shown on console
         for (let port = 1; port <= maxPort; port++) { // only read the first 4 ports
 	    GetVal(port); // this reads the values for this port
