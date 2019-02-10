@@ -21,9 +21,9 @@ for address in $addresses;do
     fi
 
     sudo chown pi /sys/bus/i2c/devices/1-00${address}/iio\:device0/*
-    echo "setup scale on $address:"
-    echo 3 >/sys/bus/i2c/devices/1-00${address}/iio:device0/in_voltage_sampling_frequency  # 18 bit 
-    echo 0.000001953 >/sys/bus/i2c/devices/1-00${address}/iio\:device0/in_voltage0_scale   # more gain
+    #echo "setup scale on $address:"
+    #echo 3 >/sys/bus/i2c/devices/1-00${address}/iio:device0/in_voltage_sampling_frequency  # 18 bit 
+    #echo 0.000001953 >/sys/bus/i2c/devices/1-00${address}/iio\:device0/in_voltage0_scale   # more gain
 
     echo "values on $address"
     for port in {0..3};do
