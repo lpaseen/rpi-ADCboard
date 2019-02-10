@@ -213,7 +213,6 @@ var fs = require('fs');
     // Main part
 
     setup(); // setup paths and load all values
-    console.log("Bits is "+port_data[1]['bits']);
     if (port_data[1]['bits'] != 18){ // just set one port since all ports have same bit count
         port_data[1]['bits'] = 18;
         setBits(1);
@@ -222,14 +221,17 @@ var fs = require('fs');
     }
     /****************/
     //read port values and print them out
-    for (let i = 3; i > 0; i--) { // do 4 reads
+    for (let i = 5; i > 0; i--) { // do 4 reads
+        // Read values, show them and tune them in 3 different loops to improve what is shown on console
         for (let port = 1; port <= maxPort; port++) { // only read the first 4 ports
 	    GetVal(port); // this reads the values for this port
-	    AutoTune(port); // Adjust gain if needed
         }
         process.stdout.write('\x1B[2J\x1B[0f');
         for (let port = 1; port <= maxPort; port++) { // only read the first 4 ports
 	    showVal(port); // this prints them out on console.log
+        }
+        for (let port = 1; port <= maxPort; port++) { // only read the first 4 ports
+	    AutoTune(port); // Adjust gain if needed
         }
         if (i > 0){
             await sleep(3000); // wait for next sample
