@@ -17,6 +17,7 @@ import smbus
 import time
 import json
 import re
+import math
 
 # https://docs.python.org/3/library/argparse.html
 import argparse
@@ -314,38 +315,14 @@ def adc2volt(port):
     data[port]['rawVal']=rawVal
     data[port]['adcV']=(data[port]['rawVal']*LSB)/data[port]['gain']
     data[port]['mV']=data[port]['adcV']/1000
-    data[port]['Rl']=2500000/data[port]['gain'] # ADC load by the specsheet but doesn't work so good
-    # 
-    # special values to do calibration test
-    # all with R1=120000, R2=20090 and a 1nF cap over R2.
+    
+    #data[port]['Rl']=2500000/data[port]['gain'] # ADC load by the specsheet but doesn't work so good
+    # The following formula/constants was created by calculate the proper Rl value over several voltage
+    # samples and then reverse engineer the formula and constants needed to create the correct Rl.
+    data[port]['Rl']=math.log(abs(data[port]['adcV'])+4.37)+1513694
 
-    # Gain, volt(instead of raw value since that change with bits), RL
-    CALIBRATE=dict()
-    CALIBRATE[1]=dict()
-    CALIBRATE[2]=dict()
-    CALIBRATE[4]=dict()
-    CALIBRATE[8]=dict()
-    CALIBRATE[1][0.2]=1520697  # good at 1.17V (1390897-1724330, 1520697)
-    CALIBRATE[1][0.5]=1708994  # good at 2.5V (1525155-1884774, 1708994)
-    CALIBRATE[1][0.75]=1737613 # good at 5.0V (1536754-1901994, 1737613)
-    CALIBRATE[1][1.2]=1805769  # good at 7.5V 
-    CALIBRATE[1][3]=1862178    # good at 10V
-
-    CALIBRATE[2][0.5]=974117   # good at 2.5V (895803-1023154, 974117)
-    CALIBRATE[2][3]=990404     # good at 5.0V (905631-1034373, 990404) 
-
-    CALIBRATE[4][3]=523370     # good at 2.5V (488305-540895,  523370)
-
-    CALIBRATE[8][3]=277777     # good at 1.17 (255602-283353,  272277)
-
-    for V,rl in sorted(CALIBRATE[data[port]['gain']].items()):
-        if (DEBUG & 0x02):
-            print ("  gain={gain},adcV={adcv}, Volt {v}, Rl {rl}".format(gain=data[port]['gain'],adcv=data[port]['adcV'],v=V,rl=rl))
-        if  (abs(data[port]['adcV']) < V):
-            data[port]['Rl']=rl
-            break
     if (DEBUG & 0x04):
-        print("end, rl=".format(data[port]['Rl']))
+        print("  end, rl={0}".format(data[port]['Rl']))
         
     if (data[port]['R1'] >0):
         data[port]['I']=data[port]['adcV']/data[port]['R2']
@@ -367,14 +344,17 @@ def adc2volt(port):
     #   RTop = Upper resistor
     #   RTot = Total Bottom resistor
     #   R1 = value of the known bottom resistor
-    #   adcR = the answer, value of the resistance the adc (and cap) have to for "V"
+    #   adcR = the answer, value of the resistance the adc (and cap) have for "V"/adcV
     #   
     
     if (CalibrateV): # If the input voltage is known calculate Rl (adc impedance)
-        RTot=data[port]['adcV']/((CalibrateV-data[port]['adcV'])/data[port]['R1'])
-        data[port]['calI']=(CalibrateV-data[port]['adcV'])/data[port]['R1']
-        data[port]['Rl']=(RTot*data[port]['R2'])/(data[port]['R2']-RTot)
-        #print("\nDEBUG: {0}".format(data[port]))
+        if ((CalibrateV-data[port]['adcV']) != 0):
+            RTot=data[port]['adcV']/((CalibrateV-data[port]['adcV'])/data[port]['R1'])
+            data[port]['calI']=(CalibrateV-data[port]['adcV'])/data[port]['R1']
+            data[port]['Rl']=(RTot*data[port]['R2'])/(data[port]['R2']-RTot)
+            #print("\nDEBUG: {0}".format(data[port]))
+        else:
+            data[port]['Rl']=0
 
     return
 
@@ -486,7 +466,7 @@ for sample in range(samples):
                    calI=data[port]['calI']*1000, trueI=data[port]['trueI']*1000))
         else:
             print (" port: {port:2}, ch:{ch:1} raw value={rawVal:7}, adcV={adcV:< 10.8f}, volt={volt: 11.7f}, trueV={trueV: 11.7f} "\
-                   "(RollAvgTrueV={raTrueV: 11.7f}, mV={mV: 13.6f}, tries={cnt:3d}, bits={bits}, gain={gain}, Rl={Rl: 9}, trueI={trueI:< 10.8f} mA)".format(
+                   "(RollAvgTrueV={raTrueV: 11.7f}, mV={mV: 13.6f}, tries={cnt:3d}, bits={bits}, gain={gain}, Rl={Rl: 9.0f}, trueI={trueI:< 10.8f} mA)".format(
                    port=port,ch=data[port]['channel'],rawVal=data[port]['rawVal'],adcV=data[port]['adcV'],volt=data[port]['volt'],trueV=data[port]['trueV'],
                    raTrueV=raTrueV[port].get_avg(), mV=data[port]['volt']*1000,bits=data[port]['bits'],gain=data[port]['gain'],cnt=cnt[port],Rl=data[port]['Rl'],
                    trueI=data[port]['trueI']*1000))
@@ -494,7 +474,11 @@ for sample in range(samples):
             AutoTune(port)
     if (len(ports) > 1 ):
         print ("")
-    time.sleep(delay)
+    try:
+        time.sleep(delay)
+    except KeyboardInterrupt:
+        print ("Keyboard interrupt, abort")
+        exit(0)
 
 exit(0)
 
