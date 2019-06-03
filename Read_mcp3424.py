@@ -11,6 +11,12 @@
 #
 #2019-03-21  Peter Sjoberg <peters-src AT techwiz DOT ca>
 #	created
+#2019-04-30  Peter Sjoberg <peters-src AT techwiz DOT ca>
+#	Added json and csv output format
+#2019-06-03  Peter Sjoberg <peters-src AT techwiz DOT ca>
+#	Added trendline formula instead of log
+#
+#
 
 # https://raspberry-projects.com/pi/programming-in-python/i2c-programming-in-python/using-the-i2c-interface-2
 import smbus
@@ -33,6 +39,10 @@ parser.add_argument('-s','--samples'  , type=int, default="1",  help='samples to
 parser.add_argument('-d','--delay'    , default="1.5",  help='delay between each sample in seconds, fractions allowed')
 parser.add_argument('--R1'     , type=int, default="120000",  help='ohms of upper resistor in voltage divider')
 parser.add_argument('--R2'     , type=int, default="20000",   help='ohms of lower resistor in voltage divider')
+parser.add_argument('--json',action='store_true', default=False, help='output in json format')
+parser.add_argument('--csv',action='store_true', default=False, help='output in csv format')
+parser.add_argument('--brief',action='store_true', default=False, help='show just basic information')
+parser.add_argument('--verbose',action='store_true', default=False, help='show more information')
 parser.add_argument('--calibrate', type=float, help=argparse.SUPPRESS)
 parser.add_argument('--debug', type=int, help=argparse.SUPPRESS)
 #parser.add_argument('--', type=int, help='')
@@ -51,6 +61,14 @@ samples=args.samples
 delay=float(args.delay)
 R1=args.R1
 R2=args.R2
+
+OUTJSON=args.json
+OUTCSV=args.csv
+BRIEF=args.brief
+VERBOSE=args.verbose
+
+CSVHEADER=False
+
 if (args.calibrate):
     CalibrateV=args.calibrate
 else:
@@ -319,8 +337,31 @@ def adc2volt(port):
     #data[port]['Rl']=2500000/data[port]['gain'] # ADC load by the specsheet but doesn't work so good
     # The following formula/constants was created by calculate the proper Rl value over several voltage
     # samples and then reverse engineer the formula and constants needed to create the correct Rl.
-    data[port]['Rl']=math.log(abs(data[port]['adcV'])+4.37)+1513694
+    #data[port]['Rl']=math.log(abs(data[port]['adcV'])+4.37)+1513694
 
+    if (data[port]['gain']==1):
+        Const1=-388049.853753757
+        Const2=1367273.89715001
+        Const3=66532.3843433287
+    elif (data[port]['gain']==2):
+        Const1=-162475.415993076
+        Const2=867360.937335571
+        Const3=138236.822103818
+    elif (data[port]['gain']==4):
+        Const1=258405.050092529
+        Const2=539311.920971033
+        Const3=120165.871884776
+    elif (data[port]['gain']==8):
+        Const1=-9956784.17089335
+        Const2=1531558.73261607
+        Const3=115416.93675707
+    else:
+        print("ERROR, unknown gain of {} - ABORT".format(data[port]['gain']))
+        exit(112)
+        
+        
+    data[port]['Rl']=Const1*abs(data[port]['adcV'])**2+Const2*abs(data[port]['adcV'])+Const3
+    
     if (DEBUG & 0x04):
         print("  end, rl={0}".format(data[port]['Rl']))
         
@@ -362,29 +403,78 @@ def adc2volt(port):
 ################
 # Show data values
 def showData():
-    board=1
-    for port in ports:  # range(1,maxport+1):
-        if (data[port]['board'] != board):
-            board=data[port]['board']
-            print()
-        print("port ={port:2} Board ={board}, Chip # = {chip}, Chip adr ={addr:02x}, Channel ={ch}, bits={bits}, rawVal={rawVal}, mV={mV:1.6f}, LSB={lsb:1.7f} mV, pga={pga}, volt={volt:3.4f}, trueV={trueV:3.4f}, status=0x{status}"
-              .format(
-                  port=port,
-                  board=data[port]['board'],
-                  chip=data[port]['chip'],
-                  addr=data[port]['chipaddr'],
-                  ch=data[port]['channel'],
-                  bits=data[port]['bits'],
-                  rawVal=data[port]['rawVal'],
-                  mV=data[port]['mV'],
-                  lsb=data[port]['LSB']*1000,
-                  pga=data[port]['gain'],
-                  volt=data[port]['volt'],
-                  trueV=data[port]['trueV'],
-                  status=printCfg(data[port]['status'])))
-    print()
-    #print(json.dumps(data[1], sort_keys=True, indent=4))
+    global CSVHEADER
 
+    outdata=dict()
+    board=1;
+
+    for port in ports:  # can't use range since it cold be something like port 1,4,12
+        if (port >maxport):
+            continue
+        outdata[port]={
+            "time" : time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+            "port" : port,
+            "board" : data[port]['board'],
+            "chip" : data[port]['chip'],
+            "addr" : data[port]['chipaddr'],
+            "ch" : data[port]['channel'],
+            "bits" : data[port]['bits'],
+            "rawVal" : data[port]['rawVal'],
+            "adcVolt" : data[port]['adcV'],
+            "mV" : data[port]['mV'],
+            "lsb" : data[port]['LSB']*1000,
+            "pga" : data[port]['gain'],
+            "volt" : data[port]['volt'],
+            "trueV" : data[port]['trueV'],
+            "raTrueV" : raTrueV[port].get_avg(),
+            "tries" : cnt[port],
+            "status" : "("+printCfg(data[port]['status'])+")"
+        }
+        if (not args.gain):
+            AutoTune(port)
+
+    if (not OUTJSON and not OUTCSV):
+        print("Time: {0}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+
+    if (OUTJSON):
+        print(json.dumps(outdata, sort_keys=True, indent=4))
+    else:
+        for port in ports:
+            if (port >maxport):
+                continue
+
+            if (OUTCSV):
+                if (not CSVHEADER):
+                    #print("#Time,port,Chip_addr,Channel,sps,rawVal,mV,LSB mV,pga,volt,status,tempC")
+                    if (BRIEF):
+                        print("#Date Time,port,bits,pga,trueV,rollV")
+                    elif(VERBOSE):
+                        print("#Date Time,port,Board,Chip,Chip adr,Channel,bits,rawVal,adcVolt,LSB mV,pga,volt,trueV,rollV,status")
+                    else:
+                        print("#Date Time,port,bits,rawVal,adcV,pga,volt,trueV,rollV")
+
+                    CSVHEADER=True
+
+                if (BRIEF):
+                    print("{time},{port},{bits},{trueV:3.4f},{raTrueV:3.4f}".format(**outdata[port]))
+                elif(VERBOSE):
+                    print("{time},{port},{board},{chip},0x{addr:02x},{ch},{bits},{rawVal},{adcVolt:1.6f},{lsb},{pga},{volt:3.4f},{trueV:3.4f},{raTrueV:3.4f},{tries},{status}".format(**outdata[port]))
+                else:
+                    print("{time},{port},{bits},{rawVal},{adcVolt:10.6f},{pga},{volt:3.4f},{trueV:3.4f},{raTrueV:3.4f}".format(**outdata[port]))
+
+            else:
+                # new line between each board
+                if (data[port]['board'] != board):
+                    board=data[port]['board']
+                    print()
+                if (BRIEF):
+                    print("port={port:2}, bits={bits}, pga={pga}, trueV={trueV:3.4f}, rollV={raTrueV:3.4f}".format(**outdata[port]))
+                elif(VERBOSE):
+                    print("port={port:2}, Board={board}, Chip#={chip}, ChipAdr={addr:02x}, Channel={ch}, bits={bits}, rawVal={rawVal}, adcV={adcVolt:1.6f}, mV={mV:1.6f}, LSB={lsb:1.7f} mV, pga={pga}, volt={volt:3.4f}, trueV={trueV:3.4f}, rollV={raTrueV:3.4f}, tries={tries}, status={status}".format(**outdata[port]))
+                else:
+                    print("port={port:2}, bits={bits}, rawVal={rawVal}, adcV={adcVolt:1.6f}, pga={pga}, volt={volt:3.4f}, trueV={trueV:3.4f}, rollV={raTrueV:3.4f}".format(**outdata[port]))
+
+            
 ################
 # tune the port gain based on voltage
 def AutoTune(port):
@@ -454,31 +544,39 @@ for sample in range(samples):
         adc2volt(port)
         raTrueV[port].add(data[port]['trueV'])
 
-    for port in ports:
-        if (port >maxport):
-            continue
-        #showData()
-        if (CalibrateV):
+    if (CalibrateV):
+        for port in ports:
+            if (port >maxport):
+                continue
             print (" port: {port:2}, ch:{ch:1} raw value={rawVal:7}, adcV={adcV:< 10.8f}, volt={volt: 11.7f}, trueV={trueV: 11.7f} "\
-                   "(RollAvgTrueV={raTrueV: 11.7f}, mV={mV: 13.6f}, tries={cnt:3d}, bits={bits}, gain={gain}, Rl={Rl: 9.0f}, trueI={trueI:< 10.8f} mA, calI={calI:12.8f} mA)".format(
-                   port=port,ch=data[port]['channel'],rawVal=data[port]['rawVal'],adcV=data[port]['adcV'],volt=data[port]['volt'],trueV=data[port]['trueV'],
-                   raTrueV=raTrueV[port].get_avg(), mV=data[port]['volt']*1000,bits=data[port]['bits'],gain=data[port]['gain'],cnt=cnt[port],Rl=data[port]['Rl'],
-                   calI=data[port]['calI']*1000, trueI=data[port]['trueI']*1000))
-        else:
-            print (" port: {port:2}, ch:{ch:1} raw value={rawVal:7}, adcV={adcV:< 10.8f}, volt={volt: 11.7f}, trueV={trueV: 11.7f} "\
-                   "(RollAvgTrueV={raTrueV: 11.7f}, mV={mV: 13.6f}, tries={cnt:3d}, bits={bits}, gain={gain}, Rl={Rl: 9.0f}, trueI={trueI:< 10.8f} mA)".format(
-                   port=port,ch=data[port]['channel'],rawVal=data[port]['rawVal'],adcV=data[port]['adcV'],volt=data[port]['volt'],trueV=data[port]['trueV'],
-                   raTrueV=raTrueV[port].get_avg(), mV=data[port]['volt']*1000,bits=data[port]['bits'],gain=data[port]['gain'],cnt=cnt[port],Rl=data[port]['Rl'],
-                   trueI=data[port]['trueI']*1000))
-        if (not args.gain):
-            AutoTune(port)
-    if (len(ports) > 1 ):
-        print ("")
-    try:
-        time.sleep(delay)
-    except KeyboardInterrupt:
-        print ("Keyboard interrupt, abort")
-        exit(0)
+                   "(RollAvgTrueV={raTrueV: 11.7f}, mV={mV: 13.6f}, tries={cnt:3d}, bits={bits}, gain={gain}, Rl={Rl: 9.0f}, trueI={trueI:< 10.8f} mA, calI={calI:12.8f} mA)"
+                   .format(
+                       port=port,
+                       ch=data[port]['channel'],
+                       rawVal=data[port]['rawVal'],
+                       adcV=data[port]['adcV'],
+                       volt=data[port]['volt'],
+                       trueV=data[port]['trueV'],
+                       raTrueV=raTrueV[port].get_avg(),
+                       mV=data[port]['volt']*1000,
+                       bits=data[port]['bits'],
+                       gain=data[port]['gain'],
+                       cnt=cnt[port],
+                       Rl=data[port]['Rl'],
+                       calI=data[port]['calI']*1000,
+                       trueI=data[port]['trueI']*1000)
+            )
+    else:
+        showData()
+        if (not OUTJSON and not OUTCSV and len(ports) > 1 ):
+            print ()
+
+    if (sample+1 < samples):
+        try:
+            time.sleep(delay)
+        except KeyboardInterrupt:
+            print ("Keyboard interrupt, abort")
+            exit(0)
 
 exit(0)
 
