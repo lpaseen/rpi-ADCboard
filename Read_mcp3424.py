@@ -389,12 +389,14 @@ def adc2volt(port):
     #   
     
     if (CalibrateV): # If the input voltage is known calculate Rl (adc impedance)
-        if ((CalibrateV-data[port]['adcV']) != 0):
+        try:
             RTot=data[port]['adcV']/((CalibrateV-data[port]['adcV'])/data[port]['R1'])
             data[port]['calI']=(CalibrateV-data[port]['adcV'])/data[port]['R1']
             data[port]['Rl']=(RTot*data[port]['R2'])/(data[port]['R2']-RTot)
             #print("\nDEBUG: {0}".format(data[port]))
-        else:
+        except ZeroDivisionError:
+            RTot=0
+            data[port]['calI']=0
             data[port]['Rl']=0
 
     return
