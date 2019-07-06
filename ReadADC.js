@@ -33,15 +33,17 @@
  */
 
 // Adjust the following addresses as needed
-var addresses={ 1 : '6e', 2 : '6f',   // first board
-		3 : '68', 4 : '69',   // second board
-	        5 : '6a', 6 : '6b',   // third board
-	        7 : '6c', 8 : '6d' }; // fourth board
+var addresses={ 1 : '68', 2 : '69',   // first board
+		3 : '6a', 4 : '6b',   // second board
+	        5 : '6c', 6 : '6d',   // third board
+	        7 : '6e', 8 : '6f' }; // fourth board
 
-const R1=220000  // voltage divider top resistor in ohms
-const R2=33000   // voltage divider bottom resistor in ohms
+const R1=120000  // voltage divider top resistor in ohms
+const R2=20000   // voltage divider bottom resistor in ohms
 
-const maxPort=4; // this should be autodiscovered with a throw
+const maxPort=8; // this should be autodiscovered with a throw
+
+var glob = require('glob');
 
 //Below should not need to be changed
 
@@ -57,11 +59,11 @@ var fs = require('fs');
     // setup/init the env
     // required to be done before this script is to load the module, activate the device and change permission
     // the script "Setup_mcp3424.sh" does it but here it is for completeness.
-    //    sudo modprobe mcp3422
     //    for address in $(i2cdetect -y  1|awk '/^60:/{print $10,$11,$12,$13,$14,$15,$16,$17}'|xargs -n1|grep -vE "UU|--");do
     //        echo mcp3424 0x$address|sudo tee -a /sys/bus/i2c/devices/i2c-1/new_device >/dev/null
     //    done
-    //    sudo chown pi /sys/bus/i2c/devices/1-006[89a-f]/iio\:device0/*
+    //    sudo modprobe mcp3422
+    //    sudo chown pi /sys/bus/i2c/devices/1-006[89a-f]/iio\:device[0-9]/*
     //
     function setup(){
 	let bits=[];
@@ -69,15 +71,15 @@ var fs = require('fs');
 	var port=1;
 
 	// setup all paths
-	for (let addr= 1; addr < 2; addr ++) {
+	for (let addr= 1; addr < maxPort/4+1; addr ++) {
             for (let ch = 0; ch < 4; ch++) {
 		port_data[port]={
-		    'path_raw' : '/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device0/in_voltage'+ch+"_raw",
-		    'path_scale' : '/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device0/in_voltage'+ch+"_scale",
+		    'path_raw' : glob.sync('/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device?/in_voltage'+ch+"_raw")[0],
+		    'path_scale' : glob.sync('/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device?/in_voltage'+ch+"_scale")[0],
 		    // The following gets duplicated for each channel but that makes later coding less assumptive and easier/consistent
-		    'path_sampleopt' : '/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device0/sampling_frequency_available',
-		    'path_samplespeed' : '/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device0/in_voltage_sampling_frequency',
-		    'path_scaleopt' : '/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device0/in_voltage_scale_available'
+		    'path_sampleopt' : glob.sync('/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device?/sampling_frequency_available')[0],
+		    'path_samplespeed' : glob.sync('/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device?/in_voltage_sampling_frequency')[0],
+		    'path_scaleopt' : glob.sync('/sys/bus/i2c/devices/1-00'+addresses[addr]+'/iio:device?/in_voltage_scale_available')[0]
 		}
 		port_data[port]['sampleopt']= fs.readFileSync(port_data[port]['path_sampleopt'],'utf8').replace(/\n$/, '').trim().split(/\s+/);
 		port_data[port]['sps']=fs.readFileSync(port_data[port]['path_samplespeed'],'utf8').replace(/\n$/, '');
@@ -216,12 +218,6 @@ var fs = require('fs');
         await sleep(300);
         setup();
     }
-    // Special setup for lab
-    //Lab version, less precise resistors, manually measured
-    port_data[2]['R1']=221700
-    port_data[2]['R2']=32760
-    port_data[3]['R1']=5720000
-    port_data[3]['R2']=1000000
     
     /****************/
     //read port values and print them out
