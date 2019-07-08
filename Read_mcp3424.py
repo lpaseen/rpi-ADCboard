@@ -339,24 +339,81 @@ def adc2volt(port):
     # samples and then reverse engineer the formula and constants needed to create the correct Rl.
     #data[port]['Rl']=math.log(abs(data[port]['adcV'])+4.37)+1513694
 
-    if (data[port]['gain']==1):
-        Const1=-388049.853753757
-        Const2=1367273.89715001
-        Const3=66532.3843433287
-    elif (data[port]['gain']==2):
-        Const1=-162475.415993076
-        Const2=867360.937335571
-        Const3=138236.822103818
-    elif (data[port]['gain']==4):
-        Const1=258405.050092529
-        Const2=539311.920971033
-        Const3=120165.871884776
-    elif (data[port]['gain']==8):
-        Const1=-9956784.17089335
-        Const2=1531558.73261607
-        Const3=115416.93675707
-    else:
-        print("ERROR, unknown gain of {} - ABORT".format(data[port]['gain']))
+    TrimConstant=dict()
+    TrimConstant[12]=dict()
+    TrimConstant[12][1]=dict()
+    TrimConstant[12][1]['Const1']=-3.424355170185259e+19
+    TrimConstant[12][1]['Const2']=4.828556474995424e+19
+    TrimConstant[12][1]['Const3']=-1.425737627820807e+19
+    TrimConstant[12][2]=dict()
+    TrimConstant[12][2]['Const1']=-1.526708878830341e+19
+    TrimConstant[12][2]['Const2']=1.8893324687030546e+19
+    TrimConstant[12][2]['Const3']=-4.912093807891111e+18
+    TrimConstant[12][4]=dict()
+    TrimConstant[12][4]['Const1']=-7668029.981844858
+    TrimConstant[12][4]['Const2']=5277699.762274106
+    TrimConstant[12][4]['Const3']=-67984.84766143521
+    TrimConstant[12][8]=dict()
+    TrimConstant[12][8]['Const1']=-21507720.55448326
+    TrimConstant[12][8]['Const2']=6883615.754798572
+    TrimConstant[12][8]['Const3']=-199798.85341486003
+    TrimConstant[14]=dict()
+    TrimConstant[14][1]=dict()
+    TrimConstant[14][1]['Const1']=-1477623.0823899982
+    TrimConstant[14][1]['Const2']=3208327.4507498317
+    TrimConstant[14][1]['Const3']=154046.1205664261
+    TrimConstant[14][2]=dict()
+    TrimConstant[14][2]['Const1']=-1247856.510692441
+    TrimConstant[14][2]['Const2']=2265921.116384707
+    TrimConstant[14][2]['Const3']=213012.65747211658
+    TrimConstant[14][4]=dict()
+    TrimConstant[14][4]['Const1']=-165803.25932930794
+    TrimConstant[14][4]['Const2']=862530.1740848151
+    TrimConstant[14][4]['Const3']=234018.96927451188
+    TrimConstant[14][8]=dict()
+    TrimConstant[14][8]['Const1']=-2397112.3519815602
+    TrimConstant[14][8]['Const2']=1099305.9215186397
+    TrimConstant[14][8]['Const3']=133948.12124144472
+    TrimConstant[16]=dict()
+    TrimConstant[16][1]=dict()
+    TrimConstant[16][1]['Const1']=-1344882.2951986308
+    TrimConstant[16][1]['Const2']=3077680.495286356
+    TrimConstant[16][1]['Const3']=166630.01447628322
+    TrimConstant[16][2]=dict()
+    TrimConstant[16][2]['Const1']=-1148593.9007143027
+    TrimConstant[16][2]['Const2']=2169437.582815227
+    TrimConstant[16][2]['Const3']=217139.72448742928
+    TrimConstant[16][4]=dict()
+    TrimConstant[16][4]['Const1']=-751416.4675009007
+    TrimConstant[16][4]['Const2']=1144291.2850283454
+    TrimConstant[16][4]['Const3']=213806.39457253422
+    TrimConstant[16][8]=dict()
+    TrimConstant[16][8]['Const1']=-2412385.0095562977
+    TrimConstant[16][8]['Const2']=1095801.9195937642
+    TrimConstant[16][8]['Const3']=135036.53019813425
+    TrimConstant[18]=dict()
+    TrimConstant[18][1]=dict()
+    TrimConstant[18][1]['Const1']=-1340307.4762630465
+    TrimConstant[18][1]['Const2']=3018502.2573347
+    TrimConstant[18][1]['Const3']=147753.80468774916
+    TrimConstant[18][2]=dict()
+    TrimConstant[18][2]['Const1']=-1280999.6002477566
+    TrimConstant[18][2]['Const2']=2241076.570429249
+    TrimConstant[18][2]['Const3']=189045.52529712868
+    TrimConstant[18][4]=dict()
+    TrimConstant[18][4]['Const1']=-585090.5944641714
+    TrimConstant[18][4]['Const2']=1031994.3765285764
+    TrimConstant[18][4]['Const3']=212267.7010562511
+    TrimConstant[18][8]=dict()
+    TrimConstant[18][8]['Const1']=-2137675.0226685423
+    TrimConstant[18][8]['Const2']=941337.898368005
+    TrimConstant[18][8]['Const3']=141562.47343822528
+    try:
+        Const1=TrimConstant[bits][data[port]['gain']]['Const1']
+        Const2=TrimConstant[bits][data[port]['gain']]['Const2']
+        Const3=TrimConstant[bits][data[port]['gain']]['Const3']
+    except KeyError:
+        print("ERROR, unknown bits of {} or gain of{} - ABORT".format(bits,gain))
         exit(112)
         
         
@@ -389,12 +446,14 @@ def adc2volt(port):
     #   
     
     if (CalibrateV): # If the input voltage is known calculate Rl (adc impedance)
-        if ((CalibrateV-data[port]['adcV']) != 0):
+        try:
             RTot=data[port]['adcV']/((CalibrateV-data[port]['adcV'])/data[port]['R1'])
             data[port]['calI']=(CalibrateV-data[port]['adcV'])/data[port]['R1']
             data[port]['Rl']=(RTot*data[port]['R2'])/(data[port]['R2']-RTot)
             #print("\nDEBUG: {0}".format(data[port]))
-        else:
+        except ZeroDivisionError:
+            RTot=0
+            data[port]['calI']=0
             data[port]['Rl']=0
 
     return
