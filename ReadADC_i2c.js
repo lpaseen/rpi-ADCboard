@@ -7,6 +7,9 @@
 *
 * License: GPL3
 *
+* Note: i2c-bus is required, can be installed with
+*           npm install i2c-bus
+*
 * 2019-07-16  Peter Sjoberg <peters-src AT techwiz DOT ca>
 *	Created as a partial port of Read_mcp3425.py
 *
