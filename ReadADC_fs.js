@@ -177,7 +177,7 @@ var fs = require('fs');
             }
             setPGA(port);
         } else if ( port_data[port]['pga'] < 8  && (port_data[port]['rawval'] < upper/2 && port_data[port]['rawval'] > lower/2)){  // can improve
-            //console.log("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ rasing the pga from "+port_data[port]['pga']);
+            //console.log("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ raising the pga from "+port_data[port]['pga']);
             if (port_data[port]['pga'] == 1){
                 port_data[port]['pga']=2;
             }else if (port_data[port]['pga'] == 2){
