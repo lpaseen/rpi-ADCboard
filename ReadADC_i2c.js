@@ -73,6 +73,7 @@ const addresses=[
     0x6a,0x6b,
     0x6c,0x6d,
     0x6e,0x6f
+    
 ]
 
 const R1=120000;
@@ -288,12 +289,15 @@ function setup(){
         data[port]['volt']=-999999
         data[port]['LSB']=(2*2.048)/(2**BITS)
         data[port]['cnt']=0
+        readADC(port)
+        /* no need to wait for RDY, we mostly just check if the chip is there and prime the data array
         while (readADC(port) & MCP3424_RDY){
             data[port]['cnt']+=1
             if (data[port]['cnt']>1000){
                 break
             }
         }
+        */
         adc2volt(port); // to fill in rawVal and so on
         
         if (channel==4){
@@ -315,21 +319,31 @@ function setup(){
 */
 
 setup();
+var start
+var end
 
-for (let port=1;port<=32;port++){
-    setOpt(port,'gain',1);
-    setOpt(port,'bits',18);
-    if (data[port]['valid']==false){
-        continue
-    }
+for (let loopcnt=0;loopcnt<2;loopcnt++){
+    start = new Date();
 
-    data[port]['cnt']=0
-    while (readADC(port) & MCP3424_RDY){
-        data[port]['cnt']+=1
-        if (data[port]['cnt']>1000){
-            break
+    for (let port=1;port<=32;port++){
+        setOpt(port,'gain',1);
+        setOpt(port,'bits',18);
+        if (data[port]['valid']==false){
+            continue
         }
+
+        data[port]['cnt']=0
+        while (readADC(port) & MCP3424_RDY){
+            data[port]['cnt']+=1
+            if (data[port]['cnt']>1000){
+                break
+            }
+        }
+        adc2volt(port); // to fill in rawVal and so on
+        console.log("Port "+port+": adcV="+data[port]['adcV']+", "+data[port]['trueV']+" Volt  ("+data[port]['cnt']+" cnt)");
+        //console.log("Port "+port+": adcV="+data[port]['adcV']+", "+data[port]['trueV']+" Volt");
     }
-    //console.log("Port "+port+": adcV="+data[port]['adcV']+", "+data[port]['trueV']+" Volt  ("+data[port]['cnt']+" cnt)");
-    console.log("Port "+port+": adcV="+data[port]['adcV']+", "+data[port]['trueV']+" Volt");
+    end = new Date() - start;
+    console.log("Execution time: "+end+" ms");
+    console.log(" ")
 }
