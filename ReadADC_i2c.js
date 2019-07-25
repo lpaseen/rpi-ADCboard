@@ -86,6 +86,7 @@ const i2c1 = i2c.openSync(1); // 1 for i2c bus 1
 // samples and then reverse engineer the formula and constants needed to create the correct ADC load.
 /***********************/
 var TrimConstant
+
 TrimConstant=[]
 TrimConstant[12]=[]
 TrimConstant[12][1]=[]
@@ -156,7 +157,6 @@ TrimConstant[18][8]['Const1']=231079.04899498075
 TrimConstant[18][8]['Const2']=389831.38249999925
 TrimConstant[18][8]['Const3']=182839.62771505647
 
-
 //variable array that holds all values
 var data=[];
 
@@ -172,15 +172,19 @@ function readADC(port){
     }
     try {
         data[port]['valid']=true;
+        //console.log("port "+port+", cmd: 0x"+(MCP3424_RDY | MCP3424_OC | MCP3424_Channel[data[port]['channel']] |MCP3424_bits[data[port]['bits']] | MCP3424_GAIN[data[port]["gain"]]).toString(16))
         i2c1.readI2cBlockSync(data[port]['chipaddr'], MCP3424_RDY | MCP3424_OC | MCP3424_Channel[data[port]['channel']] |MCP3424_bits[data[port]['bits']] | MCP3424_GAIN[data[port]["gain"]], size,i2cdata);
     }
 
     catch(e){ // 
-        //console.log("read port no "+port" failed, marking it invalid");
+        //console.log("read port no "+port+" failed, marking it invalid");
         //console.log(e);
         data[port]['valid']=false;
     }
     data[port]['raw']=i2cdata;
+    data[port]['status']=i2cdata[size-1]
+    //console.log("    status for port "+port+" = "+data[port]['status'])
+    return data[port]['status']
 } // readADC
 
 /****************
@@ -266,7 +270,7 @@ function setup(){
     var board=1
     var chip=1
     var channel=1
-    var port;
+    var port
     
     //Fill in values for all <maxport> ports, non existing ones get status of invalid (in readADC)
     for (port = 1; port <= maxport; port++) {
@@ -283,7 +287,13 @@ function setup(){
         data[port]['mV']=-999999
         data[port]['volt']=-999999
         data[port]['LSB']=(2*2.048)/(2**BITS)
-        readADC(port);
+        data[port]['cnt']=0
+        while (readADC(port) & MCP3424_RDY){
+            data[port]['cnt']+=1
+            if (data[port]['cnt']>1000){
+                break
+            }
+        }
         adc2volt(port); // to fill in rawVal and so on
         
         if (channel==4){
@@ -305,12 +315,21 @@ function setup(){
 */
 
 setup();
+
 for (let port=1;port<=32;port++){
     setOpt(port,'gain',1);
     setOpt(port,'bits',18);
     if (data[port]['valid']==false){
         continue
     }
-    readADC(port);
+
+    data[port]['cnt']=0
+    while (readADC(port) & MCP3424_RDY){
+        data[port]['cnt']+=1
+        if (data[port]['cnt']>1000){
+            break
+        }
+    }
+    //console.log("Port "+port+": adcV="+data[port]['adcV']+", "+data[port]['trueV']+" Volt  ("+data[port]['cnt']+" cnt)");
     console.log("Port "+port+": adcV="+data[port]['adcV']+", "+data[port]['trueV']+" Volt");
 }
